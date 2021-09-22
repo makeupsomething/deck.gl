@@ -119,6 +119,16 @@ export default class GoogleMapsOverlay {
       _customRender,
       ...this.props
     });
+
+    // By default, animationLoop._renderFrame invokes
+    // animationLoop.onRender. We override this to
+    // postpone the invocation until we are within
+    // the _onDrawVector lifecycle function, to avoid
+    // changing GL state when the Google Maps library
+    // isn't expecting it
+    this._deck.animationLoop._renderFrame = () => {
+      this._overlay.requestRedraw();
+    };
   }
 
   _onContextLost() {
@@ -172,11 +182,6 @@ export default class GoogleMapsOverlay {
       const _framebuffer = getParameters(gl, GL.FRAMEBUFFER_BINDING);
       deck.setProps({_framebuffer});
 
-      // Camera changed, will trigger a map repaint right after this
-      // Clear any change flag triggered by setting viewState so that deck does not request
-      // a second repaint
-      deck.needsRedraw({clearRedrawFlags: true});
-
       // Workaround for bug in Google maps where viewport state is wrong
       // TODO remove once fixed
       setParameters(gl, {
@@ -186,9 +191,18 @@ export default class GoogleMapsOverlay {
       });
 
       withParameters(gl, GL_STATE, () => {
-        deck._drawLayers('google-vector', {
-          clearCanvas: false
-        });
+        // Manually draw layers to avoid clearing basemap
+        deck._drawLayers('google-vector', {clearCanvas: false});
+
+        // Camera changed, will trigger a map repaint right after this. Clear any change flag
+        // triggered by setting viewState so that deck does not request a second repaint
+        deck.needsRedraw({clearRedrawFlags: true});
+
+        // Invoke animation loop callback that was
+        // intercepted above. We need to do this here to
+        // make sure any GL state changes are contained to
+        // the _onDrawVector lifecycle method.
+        deck.animationLoop.onRender();
       });
     }
   }
