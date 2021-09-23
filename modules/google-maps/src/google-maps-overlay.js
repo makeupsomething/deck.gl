@@ -114,11 +114,12 @@ export default class GoogleMapsOverlay {
     const _customRender = () => {
       this._overlay.requestRedraw();
     };
-    this._deck = createDeckInstance(this._map, this._overlay, this._deck, {
+    const deck = createDeckInstance(this._map, this._overlay, this._deck, {
       gl,
       _customRender,
       ...this.props
     });
+    this._deck = deck;
 
     // By default, animationLoop._renderFrame invokes
     // animationLoop.onRender. We override this to
@@ -126,8 +127,11 @@ export default class GoogleMapsOverlay {
     // the _onDrawVector lifecycle function, to avoid
     // changing GL state when the Google Maps library
     // isn't expecting it
-    this._deck.animationLoop._renderFrame = () => {
-      this._overlay.requestRedraw();
+    deck.animationLoop._renderFrame = () => {
+      deck._pickAndCallback();
+      if (deck.layerManager.needsUpdate()) {
+        this._overlay.requestRedraw();
+      }
     };
   }
 
